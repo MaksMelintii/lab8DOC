@@ -1,0 +1,379 @@
+openapi: 3.0.3
+info:
+  title: Ticket Booking Service API
+  description: |
+    REST API сервіс для бронювання квитків.
+    API використовується frontend- та mobile-клієнтами для роботи з користувачами,
+    рейсами, бронюваннями та оплатами.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+tags:
+  - name: Auth
+    description: Операції автентифікації та реєстрації
+  - name: Flights
+    description: Операції пошуку та перегляду рейсів
+  - name: Bookings
+    description: Операції створення, перегляду та скасування бронювань
+
+paths:
+  /api/auth/register:
+    post:
+      tags:
+        - Auth
+      summary: Реєстрація користувача
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Користувача успішно зареєстровано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Вхід у систему
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Успішний вхід
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/flights/search:
+    get:
+      tags:
+        - Flights
+      summary: Пошук рейсів
+      parameters:
+        - name: origin
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Пункт відправлення
+        - name: destination
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Пункт прибуття
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          description: Дата поїздки
+      responses:
+        '200':
+          description: Список рейсів
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Flight'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/bookings:
+    post:
+      tags:
+        - Bookings
+      summary: Створити бронювання
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBookingRequest'
+      responses:
+        '201':
+          description: Бронювання створено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Місце вже зайняте
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/bookings/my:
+    get:
+      tags:
+        - Bookings
+      summary: Отримати бронювання поточного користувача
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Список бронювань користувача
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Booking'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/bookings/{id}:
+    get:
+      tags:
+        - Bookings
+      summary: Отримати бронювання за ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Ідентифікатор бронювання
+      responses:
+        '200':
+          description: Бронювання знайдено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/bookings/{id}/cancel:
+    patch:
+      tags:
+        - Bookings
+      summary: Скасувати бронювання
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Ідентифікатор бронювання
+      responses:
+        '200':
+          description: Бронювання скасовано
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    BadRequest:
+      description: Некоректний запит
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Неавторизований доступ
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Ресурс не знайдено
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required:
+        - full_name
+        - email
+        - password
+      properties:
+        full_name:
+          type: string
+          example: Max Melintij
+        email:
+          type: string
+          format: email
+          example: max@example.com
+        password:
+          type: string
+          format: password
+          example: qwerty123
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: max@example.com
+        password:
+          type: string
+          format: password
+          example: qwerty123
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          example: jwt.token.here
+        user:
+          $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          example: u_101
+        full_name:
+          type: string
+          example: Max Melintij
+        email:
+          type: string
+          format: email
+          example: max@example.com
+        role:
+          type: string
+          example: user
+
+    Flight:
+      type: object
+      properties:
+        id:
+          type: string
+          example: fl_201
+        origin:
+          type: string
+          example: Chernivtsi
+        destination:
+          type: string
+          example: Kyiv
+        departure_time:
+          type: string
+          format: date-time
+          example: 2026-05-20T08:00:00Z
+        arrival_time:
+          type: string
+          format: date-time
+          example: 2026-05-20T12:00:00Z
+        available_seats:
+          type: integer
+          example: 18
+        price:
+          type: number
+          format: float
+          example: 1499.99
+
+    CreateBookingRequest:
+      type: object
+      required:
+        - flight_id
+        - seat_number
+      properties:
+        flight_id:
+          type: string
+          example: fl_201
+        seat_number:
+          type: string
+          example: 12A
+
+    Booking:
+      type: object
+      properties:
+        id:
+          type: string
+          example: bk_301
+        user_id:
+          type: string
+          example: u_101
+        flight_id:
+          type: string
+          example: fl_201
+        seat_number:
+          type: string
+          example: 12A
+        booking_status:
+          type: string
+          example: pending_payment
+        created_at:
+          type: string
+          format: date-time
+          example: 2026-04-21T12:00:00Z
+
+    BookingResponse:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/Booking'
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              example: BOOKING_NOT_FOUND
+            message:
+              type: string
+              example: Booking not found
